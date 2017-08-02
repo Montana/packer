@@ -15,6 +15,7 @@ type StepCreateEncryptedAMICopy struct {
 	KeyID             string
 	EncryptBootVolume bool
 	Name              string
+	AMIMappings       []BlockDevice
 }
 
 func (s *StepCreateEncryptedAMICopy) Run(state multistep.StateBag) multistep.StepAction {
@@ -118,6 +119,16 @@ func (s *StepCreateEncryptedAMICopy) Run(state multistep.StateBag) multistep.Ste
 
 	for _, blockDevice := range unencImage.BlockDeviceMappings {
 		if blockDevice.Ebs != nil && blockDevice.Ebs.SnapshotId != nil {
+			// If this packer run didn't create it, then don't delete it
+			doDelete := false
+			for _, origDevice := range s.AMIMappings {
+				if origDevice.SnapshotId == *blockDevice.Ebs.SnapshotId {
+					doDelete = true
+				}
+			}
+			if doDelete != true {
+				continue
+			}
 			ui.Message(fmt.Sprintf("Snapshot ID: %s", *blockDevice.Ebs.SnapshotId))
 			deleteSnapOpts := &ec2.DeleteSnapshotInput{
 				SnapshotId: aws.String(*blockDevice.Ebs.SnapshotId),
